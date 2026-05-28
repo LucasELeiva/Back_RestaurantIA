@@ -277,6 +277,19 @@ def _fallback_local(req: PredictRequest) -> dict:
     }
 
 
+# ── Staff — mapeo id_mozo → nombre ────────────────────────────────────────
+MOZOS: dict[int, str] = {
+    1: "Valentín Herrera",
+    2: "Lucía Morán",
+    3: "Sebastián Ríos",
+    4: "Camila Fontana",
+    5: "Nicolás Paredes",
+    6: "Sofía Villalba",
+    7: "Matías Guerrero",
+    8: "Florencia Castillo",
+}
+
+
 # ── Enriquecimiento de nombres de platos ───────────────────────────────────
 
 def _enrich_nombres(raw: dict) -> None:
@@ -288,6 +301,12 @@ def _enrich_nombres(raw: dict) -> None:
                 plato["nombre_plato"] = info.get("nombre", "Plato desconocido")
                 plato["descripcion"] = info.get("descripcion")
                 plato["precio"] = info.get("precio", 0)
+
+
+def _enrich_mozos(raw: dict) -> None:
+    """Agrega nombre al campo nombre_mozo en cada mozo recomendado (muta raw)."""
+    for mozo in raw.get("mozos_recomendados", []):
+        mozo["nombre_mozo"] = MOZOS.get(mozo["id_mozo"], "Mozo desconocido")
 
 
 # ── Punto de entrada público ────────────────────────────────────────────────
@@ -311,6 +330,7 @@ def run_inference(req: PredictRequest) -> PredictResponse:
 
     latencia_ms = int((time.monotonic() - t0) * 1000)
     _enrich_nombres(raw)
+    _enrich_mozos(raw)
 
     return PredictResponse(
         id_mesa=raw["id_mesa"],
