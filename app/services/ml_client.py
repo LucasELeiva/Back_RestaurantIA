@@ -24,7 +24,7 @@ from app.services.dynamo_client import get_cliente_historico, get_segmento_refer
 logger = logging.getLogger("bistrotech.ml_client")
 
 ML_BACKEND = os.getenv("ML_BACKEND", "local")
-SAGEMAKER_ENDPOINT = os.getenv("SAGEMAKER_ENDPOINT", "bistrotech-endpoint")
+SAGEMAKER_ENDPOINT = os.getenv("SAGEMAKER_ENDPOINT", "bistrotech-endpoint-v1")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 MODELO_VERSION = os.getenv("MODELO_VERSION", "v1.0")
 
