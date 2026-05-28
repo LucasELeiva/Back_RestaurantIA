@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
-from app.models.schemas import Mesa, MesaCreate, MesaUpdate, PedidoCreate, PedidoResponse, Comensal
+from app.models.schemas import Mesa, MesaCreate, MesaUpdate
 from app.services.mesa_service import create_mesa, get_mesa, list_mesas, update_mesa, delete_mesa
-from app.services.pedido_service import create_pedido, list_pedidos
+
 from botocore.exceptions import ClientError
 import logging
 
@@ -46,21 +46,5 @@ def eliminar_mesa(id_mesa: int) -> None:
         raise HTTPException(status_code=404, detail=f"Mesa {id_mesa} no encontrada")
 
 
-# ── Pedidos de una mesa ──────────────────────────────────────────────────────
-
-@router.post("/{id_mesa}/pedidos", response_model=PedidoResponse, status_code=201)
-def crear_pedido(id_mesa: int, req: PedidoCreate) -> PedidoResponse:
-    """
-    Crea un pedido para la mesa: recibe los comensales + contexto,
-    dispara el predict internamente y devuelve las recomendaciones.
-    """
-    try:
-        return create_pedido(id_mesa, req)
-    except Exception as exc:
-        logger.exception("Error creando pedido para mesa %s", id_mesa)
-        raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.get("/{id_mesa}/pedidos", response_model=list[Comensal])
-def listar_pedidos_mesa(id_mesa: int) -> list[Comensal]:
-    return list_pedidos(id_mesa)

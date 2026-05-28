@@ -135,6 +135,31 @@ class Comensal(BaseModel):
     def normalizar_restriccion(cls, v): return _norm_restriccion(v)
 
 
+class ComensalPreferenciaCreate(BaseModel):
+    id_cliente: Optional[int] = Field(None, description="DNI del cliente. Null para walk-ins.")
+    franja_etaria_persona: FranjaEtaria
+    cant_acompanantes: int = Field(..., ge=0)
+    motivo_visita: MotivoVisita
+    restriccion_alimentaria: RestriccionAlimentaria
+    orden_de_pedido: int = Field(..., ge=1)
+
+    @field_validator("id_cliente", mode="before")
+    @classmethod
+    def parsear_dni(cls, v): return _parse_dni(v)
+
+    @field_validator("franja_etaria_persona", mode="before")
+    @classmethod
+    def normalizar_franja(cls, v): return _norm_franja_etaria(v)
+
+    @field_validator("motivo_visita", mode="before")
+    @classmethod
+    def normalizar_motivo(cls, v): return _norm_motivo(v)
+
+    @field_validator("restriccion_alimentaria", mode="before")
+    @classmethod
+    def normalizar_restriccion(cls, v): return _norm_restriccion(v)
+
+
 class PredictRequest(BaseModel):
     id_mesa: int = Field(..., ge=1)
     comensales: list[Comensal] = Field(..., min_length=1, max_length=20)
@@ -192,6 +217,7 @@ class Mesa(BaseModel):
     ubicacion: UbicacionMesa
     estado: EstadoMesa
     activa: bool
+    cantidad_personas: int = 0
 
 
 # ── Reservas ─────────────────────────────────────────────────────────────────
@@ -275,13 +301,49 @@ class FeedbackResponse(BaseModel):
 # ── Pedidos ──────────────────────────────────────────────────────────────────
 
 class EstadoPedido(str, Enum):
+    pendiente = "pendiente"
     activo = "activo"
+    informado = "informado"
+    confirmado = "confirmado"
     cerrado = "cerrado"
+
+class PlatosSeleccionados(BaseModel):
+    id_entrada: Optional[int] = Field(None, ge=1, le=8)
+    id_principal: int = Field(..., ge=9, le=20)
+    id_postre: Optional[int] = Field(None, ge=21, le=25)
+    id_bebida: int = Field(..., ge=26, le=30)
+
+class PedidoEstadoUpdate(BaseModel):
+    estado: EstadoPedido
 
 class PedidoCreate(BaseModel):
     comensales: list[Comensal] = Field(..., min_length=1, max_length=20)
     dia_semana: int = Field(..., ge=0, le=6, description="0=Lunes, 6=Domingo")
     franja_horaria: FranjaHoraria
+
+class PedidoMesaCreate(BaseModel):
+    dia_semana: int = Field(..., ge=0, le=6, description="0=Lunes, 6=Domingo")
+    franja_horaria: FranjaHoraria
+
+class ComensalPedidoCreate(BaseModel):
+    id_mesa: int = Field(..., ge=1)
+    comensal: ComensalPreferenciaCreate
+
+class ComensalPedidoResponse(BaseModel):
+    codigo_pedido: str
+    id_mesa: int
+    estado: EstadoPedido
+    fecha_hora: str
+    comensal: Comensal
+    id_pedido: Optional[str] = None
+    platos_seleccionados: Optional[PlatosSeleccionados] = None
+
+class SeleccionPlatosResponse(BaseModel):
+    ok: bool
+    codigo_pedido: str
+    id_pedido: str
+    estado: EstadoPedido
+    platos_seleccionados: PlatosSeleccionados
 
 class PedidoResponse(BaseModel):
     id_pedido: str
@@ -295,6 +357,25 @@ class PedidoResponse(BaseModel):
 
 class ComensalFeedback(BaseModel):
     id_persona_en_mesa: int = Field(..., ge=1)
+    id_mozo: int = Field(..., ge=1, le=8)
+    id_entrada: Optional[int] = Field(None, ge=1, le=8)
+    id_principal: int = Field(..., ge=9, le=20)
+    id_postre: Optional[int] = Field(None, ge=21, le=25)
+    id_bebida: int = Field(..., ge=26, le=30)
+    hora_entrega_plato: Optional[str] = None
+    hora_retiro_plato: Optional[str] = None
+    monto_propina: Optional[float] = Field(None, ge=0)
+    propina_rate: Optional[float] = Field(None, ge=0)
+    like_mozo: Optional[bool] = None
+    like_entrada: Optional[bool] = None
+    like_principal: Optional[bool] = None
+    like_postre: Optional[bool] = None
+    like_bebida: Optional[bool] = None
+    proporcion_dejada_entrada: Optional[ProporcionDejada] = None
+    proporcion_dejada_principal: Optional[ProporcionDejada] = None
+    proporcion_dejada_postre: Optional[ProporcionDejada] = None
+
+class ComensalCodigoFeedback(BaseModel):
     id_mozo: int = Field(..., ge=1, le=8)
     id_entrada: Optional[int] = Field(None, ge=1, le=8)
     id_principal: int = Field(..., ge=9, le=20)

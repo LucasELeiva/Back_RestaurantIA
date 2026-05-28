@@ -4,30 +4,49 @@ from typing import Optional
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from boto3.dynamodb.conditions import Attr
+from boto3.dynamodb.conditions import Attr, Key
 
 from app.models.schemas import Mesa, MesaCreate, MesaUpdate, EstadoMesa
 
 logger = logging.getLogger("bistrotech.mesa_service")
 
 TABLE_MESAS   = os.getenv("DYNAMODB_TABLE_MESAS", "bistrotech-mesas")
+TABLE_REGISTROS = os.getenv("DYNAMODB_TABLE_REGISTROS", "bistrotech-registros")
 ENDPOINT_URL  = os.getenv("DYNAMODB_ENDPOINT_URL")
 
 
-def _get_table():
+def _get_table(table_name: str = TABLE_MESAS):
     kwargs = {"region_name": os.getenv("AWS_REGION", "us-east-1")}
     if ENDPOINT_URL:
         kwargs["endpoint_url"] = ENDPOINT_URL
-    return boto3.resource("dynamodb", **kwargs).Table(TABLE_MESAS)
+    return boto3.resource("dynamodb", **kwargs).Table(table_name)
 
 
-def _to_mesa(item: dict) -> Mesa:
+def _cantidad_personas_mesa(id_mesa: int) -> int:
+    try:
+        resp = _get_table(TABLE_REGISTROS).query(
+            KeyConditionExpression=Key("id_mesa").eq(id_mesa),
+            FilterExpression=Attr("codigo_pedido").exists() & Attr("estado").ne("cerrado"),
+        )
+        return len(resp.get("Items", []))
+    except (BotoCoreError, ClientError) as exc:
+        logger.warning("Error contando personas en mesa %s: %s", id_mesa, exc)
+        return 0
+
+
+def _to_mesa(item: dict, incluir_cantidad_personas: bool = False) -> Mesa:
+    id_mesa = int(item["id_mesa"])
     return Mesa(
-        id_mesa=int(item["id_mesa"]),
+        id_mesa=id_mesa,
         capacidad=int(item["capacidad"]),
         ubicacion=item["ubicacion"],
         estado=item["estado"],
         activa=item["activa"],
+        cantidad_personas=(
+            _cantidad_personas_mesa(id_mesa)
+            if incluir_cantidad_personas
+            else int(item.get("cantidad_personas", 0))
+        ),
     )
 
 
@@ -61,7 +80,10 @@ def list_mesas(solo_activas: bool = True) -> list[Mesa]:
         if solo_activas:
             kwargs["FilterExpression"] = Attr("activa").eq(True)
         resp = _get_table().scan(**kwargs)
-        return [_to_mesa(i) for i in resp.get("Items", [])]
+        return [
+            _to_mesa(i, incluir_cantidad_personas=True)
+            for i in resp.get("Items", [])
+        ]   
     except (BotoCoreError, ClientError) as exc:
         logger.warning("Error listando mesas: %s", exc)
         return []

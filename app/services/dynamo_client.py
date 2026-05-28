@@ -12,6 +12,7 @@ Para desarrollo local con DynamoDB Local setear DYNAMODB_ENDPOINT_URL=http://loc
 import os
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 import boto3
@@ -32,6 +33,12 @@ def _get_resource():
     if ENDPOINT_URL:
         kwargs["endpoint_url"] = ENDPOINT_URL
     return boto3.resource("dynamodb", **kwargs)
+
+
+def _to_dynamo_value(value):
+    if isinstance(value, float):
+        return Decimal(str(value))
+    return value
 
 
 # ── Guardar predicción ──────────────────────────────────────────────────────
@@ -148,7 +155,7 @@ def update_feedback(req: FeedbackRequest) -> int:
             name_ph, val_ph = f"#f{i}", f":v{i}"
             expr_parts.append(f"{name_ph} = {val_ph}")
             expr_names[name_ph] = k
-            expr_values[val_ph] = v
+            expr_values[val_ph] = _to_dynamo_value(v)
 
         table.update_item(
             Key={"id_mesa": req.id_mesa, "persona_ts": persona_ts},
@@ -160,7 +167,7 @@ def update_feedback(req: FeedbackRequest) -> int:
         logger.info("Feedback actualizado: id_mesa=%s persona_ts=%s", req.id_mesa, persona_ts)
         return 1
 
-    except (BotoCoreError, ClientError) as exc:
+    except (BotoCoreError, ClientError, TypeError) as exc:
         logger.warning("Error actualizando feedback: %s", exc)
         return 0
 
@@ -196,7 +203,7 @@ def update_feedback_by_key(id_mesa: int, persona_ts: str, c: ComensalFeedback) -
             name_ph, val_ph = f"#f{i}", f":v{i}"
             expr_parts.append(f"{name_ph} = {val_ph}")
             expr_names[name_ph] = k
-            expr_values[val_ph] = v
+            expr_values[val_ph] = _to_dynamo_value(v)
 
         resp = table.update_item(
             Key={"id_mesa": id_mesa, "persona_ts": persona_ts},
@@ -208,7 +215,7 @@ def update_feedback_by_key(id_mesa: int, persona_ts: str, c: ComensalFeedback) -
         id_cliente = resp.get("Attributes", {}).get("id_cliente")
         logger.info("Feedback by key: id_mesa=%s persona_ts=%s", id_mesa, persona_ts)
         return int(id_cliente) if id_cliente is not None else None
-    except (BotoCoreError, ClientError) as exc:
+    except (BotoCoreError, ClientError, TypeError) as exc:
         logger.warning("Error en update_feedback_by_key: %s", exc)
         return -1
 
