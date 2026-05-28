@@ -116,9 +116,9 @@ PLATOS: dict[int, dict] = {
     29: {"nombre": "Gaseosa 350ml",
          "descripcion": "Selección de gaseosas importadas",
          "precio": 3500},
-    30: {"nombre": "Café de especialidad / infusiones",
-         "descripcion": None,
-         "precio": 5800},
+    30: {"nombre": "Cerveza artesanal",
+         "descripcion": "Selección de cervezas artesanales nacionales e importadas",
+         "precio": 6500},
 }
 
 ML_BACKEND = os.getenv("ML_BACKEND", "local")
