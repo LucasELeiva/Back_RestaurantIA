@@ -146,6 +146,7 @@ class PredictRequest(BaseModel):
 
 class MozoRecomendado(BaseModel):
     id_mozo: int
+    nombre_mozo: Optional[str] = None
     propina_rate_esperado: float
     rank: int
 
