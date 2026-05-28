@@ -151,6 +151,9 @@ class MozoRecomendado(BaseModel):
 
 class Plato(BaseModel):
     id_plato: int
+    nombre_plato: str
+    descripcion: Optional[str]
+    precio: int
     score: float
     rank: int
 

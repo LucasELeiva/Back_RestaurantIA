@@ -23,6 +23,104 @@ from app.services.dynamo_client import get_cliente_historico, get_segmento_refer
 
 logger = logging.getLogger("bistrotech.ml_client")
 
+# ── Carta Bellavista — mapeo id_plato → {nombre, descripcion, precio} ──────
+PLATOS: dict[int, dict] = {
+    # Entradas (1-8): aperitivos + sopas + ensalada
+    1:  {"nombre": "Ostras al natural con mignonette de champagne",
+         "descripcion": "Media docena de ostras frescas de Ushuaia, salsa mignonette con echalotte y vinagre de champagne, limón Meyer",
+         "precio": 18500},
+    2:  {"nombre": "Foie gras mi-cuit",
+         "descripcion": "Torchon de foie gras con compota de higos, brioche tostado y fleur de sel",
+         "precio": 22000},
+    3:  {"nombre": "Carpaccio de lomo Aberdeen Angus",
+         "descripcion": "Finas láminas de lomo premium, aceite de trufa, rúcula silvestre y parmesano reggiano 24 meses",
+         "precio": 16800},
+    4:  {"nombre": "Burrata con tomates heredados",
+         "descripcion": "Burrata cremosa de producción propia, tomates heirloom de estación, pesto de albahaca y aceite de oliva extra virgen mendocino",
+         "precio": 14200},
+    5:  {"nombre": "Bisque de langostinos patagónicos",
+         "descripcion": "Bisque concentrada con langostinos salteados, crema de coco, aceite de curry y ciboulette",
+         "precio": 15400},
+    6:  {"nombre": "Velouté de hongos silvestres",
+         "descripcion": "Mezcla de hongos porcini, portobello y shiitake, trufa rallada y aceite de avellana tostada",
+         "precio": 12600},
+    7:  {"nombre": "Consommé doble de res",
+         "descripcion": "Consommé clarificado, dumplings de tuétano, brunoise de verduras y hierbas frescas",
+         "precio": 11800},
+    8:  {"nombre": "Ensalada de rúcula, pera y gorgonzola",
+         "descripcion": "Hojas de rúcula fresca, pera Williams caramelizada, gorgonzola dolce y nueces tostadas con reducción de balsámico",
+         "precio": 7200},
+    # Principales (9-20): pastas + pescados + carnes
+    9:  {"nombre": "Tagliolini al nero di seppia",
+         "descripcion": "Pasta negra al tintero, vieiras de Santa Cruz, ajo negro fermentado y bottarga rallada",
+         "precio": 24500},
+    10: {"nombre": "Pappardelle al ragú de ciervo",
+         "descripcion": "Pappardelle de harina integral, ragú estofado 8 horas de ciervo patagónico, ricotta ahumada y hierbas del campo",
+         "precio": 26800},
+    11: {"nombre": "Risotto al tartufo bianco",
+         "descripcion": "Arroz carnaroli, manteca clarificada, parmesano, aceite de trufa blanca y láminas de trufa fresca",
+         "precio": 28000},
+    12: {"nombre": "Ravioles de ricotta y espinaca",
+         "descripcion": "Pasta fresca rellena, mantequilla noisette, salvia frita y nueces de pecan tostadas",
+         "precio": 21500},
+    13: {"nombre": "Merluza negra a la plancha",
+         "descripcion": "Filete de merluza negra del sur, purée de coliflor ahumada, emulsión de azafrán y microgreens",
+         "precio": 38500},
+    14: {"nombre": "Salmón del Atlántico en papillote",
+         "descripcion": "Filete de salmón con vegetales de estación, vino blanco, limón y hierbas provenzales",
+         "precio": 32000},
+    15: {"nombre": "Langostinos al ajillo con pasta de tinta",
+         "descripcion": "Langostinos XL salteados en manteca con ajo, guindilla y fideos negros al dente",
+         "precio": 34800},
+    16: {"nombre": "Pulpo a la gallega",
+         "descripcion": "Pulpo del Pacífico, pimentón ahumado de la Vera, aceite de oliva, sal gruesa y cachelos",
+         "precio": 29500},
+    17: {"nombre": "Bife de chorizo dry-aged 400g",
+         "descripcion": "Madurado 45 días, grilla de leña, chimichurri clásico de la casa y papas rústicas con romero",
+         "precio": 46000},
+    18: {"nombre": "Lomo Wellington",
+         "descripcion": "Lomo de ternera en costra de hojaldre, duxelles de hongos, jamón ibérico y salsa périgueux",
+         "precio": 54500},
+    19: {"nombre": "Costillar de cordero patagónico",
+         "descripcion": "Rack de cordero con costra de hierbas, puré de batata y salsa de menta fresca",
+         "precio": 48000},
+    20: {"nombre": "Entrecot de wagyu A4 250g",
+         "descripcion": "Wagyu importado de Japón, salsa de tuétano y vino tinto, espárragos a la parrilla y papas suflé",
+         "precio": 68000},
+    # Postres (21-25)
+    21: {"nombre": "Brownie de chocolate con helado de vainilla",
+         "descripcion": "Brownie húmedo de chocolate amargo, helado de vainilla de Tahití y salsa de caramelo salado",
+         "precio": 12000},
+    22: {"nombre": "Soufflé de chocolate amargo",
+         "descripcion": "Soufflé caliente de chocolate amargo 72%, helado de vainilla de Tahití. Preparación: 18 min",
+         "precio": 14500},
+    23: {"nombre": "Tarte Tatin de manzanas",
+         "descripcion": "Manzana Granny Smith caramelizada, masa hojaldrada invertida, crème fraîche y caramelo salado",
+         "precio": 12800},
+    24: {"nombre": "Crème brûlée de lavanda",
+         "descripcion": "Crema de vainilla infusionada en lavanda de Mendoza, azúcar tostado al momento",
+         "precio": 11200},
+    25: {"nombre": "Tabla de quesos maduros",
+         "descripcion": "Selección de 5 quesos, mermelada de higos, miel de colmena y crackers artesanales",
+         "precio": 18000},
+    # Bebidas (26-30)
+    26: {"nombre": "Agua mineral 750ml",
+         "descripcion": "Agua mineral sin gas / con gas",
+         "precio": 4200},
+    27: {"nombre": "Vino por copa — selección del sommelier",
+         "descripcion": None,
+         "precio": 9500},
+    28: {"nombre": "Champagne Moët & Chandon Brut (copa)",
+         "descripcion": None,
+         "precio": 16000},
+    29: {"nombre": "Gaseosa 350ml",
+         "descripcion": "Selección de gaseosas importadas",
+         "precio": 3500},
+    30: {"nombre": "Café de especialidad / infusiones",
+         "descripcion": None,
+         "precio": 5800},
+}
+
 ML_BACKEND = os.getenv("ML_BACKEND", "local")
 SAGEMAKER_ENDPOINT = os.getenv("SAGEMAKER_ENDPOINT", "bistrotech-endpoint-v1")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
@@ -179,6 +277,19 @@ def _fallback_local(req: PredictRequest) -> dict:
     }
 
 
+# ── Enriquecimiento de nombres de platos ───────────────────────────────────
+
+def _enrich_nombres(raw: dict) -> None:
+    """Agrega nombre_plato, descripcion y precio a cada plato en la respuesta (muta raw)."""
+    for rec in raw.get("recomendaciones_por_comensal", []):
+        for categoria in ("entrada", "principal", "postre", "bebida"):
+            for plato in rec.get(categoria, []):
+                info = PLATOS.get(plato["id_plato"], {})
+                plato["nombre_plato"] = info.get("nombre", "Plato desconocido")
+                plato["descripcion"] = info.get("descripcion")
+                plato["precio"] = info.get("precio", 0)
+
+
 # ── Punto de entrada público ────────────────────────────────────────────────
 
 def run_inference(req: PredictRequest) -> PredictResponse:
@@ -199,6 +310,7 @@ def run_inference(req: PredictRequest) -> PredictResponse:
         raw = _fallback_local(req)
 
     latencia_ms = int((time.monotonic() - t0) * 1000)
+    _enrich_nombres(raw)
 
     return PredictResponse(
         id_mesa=raw["id_mesa"],
