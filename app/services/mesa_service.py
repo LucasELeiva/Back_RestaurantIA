@@ -1,10 +1,11 @@
 import os
 import logging
+from collections import defaultdict
 from typing import Optional
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from boto3.dynamodb.conditions import Attr, Key
+from boto3.dynamodb.conditions import Attr
 
 from app.models.schemas import Mesa, MesaCreate, MesaUpdate, EstadoMesa
 
@@ -14,39 +15,58 @@ TABLE_MESAS   = os.getenv("DYNAMODB_TABLE_MESAS", "bistrotech-mesas")
 TABLE_REGISTROS = os.getenv("DYNAMODB_TABLE_REGISTROS", "bistrotech-registros")
 ENDPOINT_URL  = os.getenv("DYNAMODB_ENDPOINT_URL")
 
+_DYNAMODB_RESOURCE = None
+
+
+def _get_resource():
+    global _DYNAMODB_RESOURCE
+    if _DYNAMODB_RESOURCE is None:
+        kwargs = {"region_name": os.getenv("AWS_REGION", "us-east-1")}
+        if ENDPOINT_URL:
+            kwargs["endpoint_url"] = ENDPOINT_URL
+        _DYNAMODB_RESOURCE = boto3.resource("dynamodb", **kwargs)
+    return _DYNAMODB_RESOURCE
+
 
 def _get_table(table_name: str = TABLE_MESAS):
-    kwargs = {"region_name": os.getenv("AWS_REGION", "us-east-1")}
-    if ENDPOINT_URL:
-        kwargs["endpoint_url"] = ENDPOINT_URL
-    return boto3.resource("dynamodb", **kwargs).Table(table_name)
+    return _get_resource().Table(table_name)
 
 
-def _cantidad_personas_mesa(id_mesa: int) -> int:
+def _contar_personas_por_mesa() -> dict[int, int]:
+    """
+    Una sola pasada por registros (scan paginado) en lugar de N queries por mesa.
+    """
+    counts: dict[int, int] = defaultdict(int)
+    filtro = Attr("codigo_pedido").exists() & Attr("estado").ne("cerrado")
     try:
-        resp = _get_table(TABLE_REGISTROS).query(
-            KeyConditionExpression=Key("id_mesa").eq(id_mesa),
-            FilterExpression=Attr("codigo_pedido").exists() & Attr("estado").ne("cerrado"),
+        table = _get_table(TABLE_REGISTROS)
+        resp = table.scan(
+            FilterExpression=filtro,
+            ProjectionExpression="id_mesa",
         )
-        return len(resp.get("Items", []))
+        for item in resp.get("Items", []):
+            counts[int(item["id_mesa"])] += 1
+        while "LastEvaluatedKey" in resp:
+            resp = table.scan(
+                FilterExpression=filtro,
+                ProjectionExpression="id_mesa",
+                ExclusiveStartKey=resp["LastEvaluatedKey"],
+            )
+            for item in resp.get("Items", []):
+                counts[int(item["id_mesa"])] += 1
     except (BotoCoreError, ClientError) as exc:
-        logger.warning("Error contando personas en mesa %s: %s", id_mesa, exc)
-        return 0
+        logger.warning("Error contando personas por mesa: %s", exc)
+    return dict(counts)
 
 
-def _to_mesa(item: dict, incluir_cantidad_personas: bool = False) -> Mesa:
-    id_mesa = int(item["id_mesa"])
+def _to_mesa(item: dict, cantidad_personas: int = 0) -> Mesa:
     return Mesa(
-        id_mesa=id_mesa,
+        id_mesa=int(item["id_mesa"]),
         capacidad=int(item["capacidad"]),
         ubicacion=item["ubicacion"],
         estado=item["estado"],
         activa=item["activa"],
-        cantidad_personas=(
-            _cantidad_personas_mesa(id_mesa)
-            if incluir_cantidad_personas
-            else int(item.get("cantidad_personas", 0))
-        ),
+        cantidad_personas=cantidad_personas,
     )
 
 
@@ -80,10 +100,11 @@ def list_mesas(solo_activas: bool = True) -> list[Mesa]:
         if solo_activas:
             kwargs["FilterExpression"] = Attr("activa").eq(True)
         resp = _get_table().scan(**kwargs)
+        personas_por_mesa = _contar_personas_por_mesa()
         return [
-            _to_mesa(i, incluir_cantidad_personas=True)
+            _to_mesa(i, personas_por_mesa.get(int(i["id_mesa"]), 0))
             for i in resp.get("Items", [])
-        ]   
+        ]
     except (BotoCoreError, ClientError) as exc:
         logger.warning("Error listando mesas: %s", exc)
         return []

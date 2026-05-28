@@ -90,7 +90,10 @@ def test_listar_mesas_incluye_cantidad_personas(monkeypatch):
             }
 
     monkeypatch.setattr("app.services.mesa_service._get_table", lambda table_name="": FakeMesaTable())
-    monkeypatch.setattr("app.services.mesa_service._cantidad_personas_mesa", lambda id_mesa: 2)
+    monkeypatch.setattr(
+        "app.services.mesa_service._contar_personas_por_mesa",
+        lambda: {1: 2},
+    )
 
     r = client.get("/api/v1/mesas?solo_activas=true")
     assert r.status_code == 200
