@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.models.schemas import Mesa, MesaCreate, MesaUpdate, PedidoCreate, PedidoResponse
+from app.models.schemas import Mesa, MesaCreate, MesaUpdate, PedidoCreate, PedidoResponse, Comensal
 from app.services.mesa_service import create_mesa, get_mesa, list_mesas, update_mesa, delete_mesa
 from app.services.pedido_service import create_pedido, list_pedidos
 from botocore.exceptions import ClientError
@@ -61,6 +61,6 @@ def crear_pedido(id_mesa: int, req: PedidoCreate) -> PedidoResponse:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.get("/{id_mesa}/pedidos", response_model=list[PedidoResponse])
-def listar_pedidos_mesa(id_mesa: int) -> list[PedidoResponse]:
+@router.get("/{id_mesa}/pedidos", response_model=list[Comensal])
+def listar_pedidos_mesa(id_mesa: int) -> list[Comensal]:
     return list_pedidos(id_mesa)

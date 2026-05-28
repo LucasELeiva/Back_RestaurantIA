@@ -11,7 +11,7 @@ from boto3.dynamodb.conditions import Attr
 
 from app.models.schemas import (
     PedidoCreate, PedidoResponse, PedidoFeedbackRequest, PedidoFeedbackResponse,
-    EstadoPedido, PredictRequest,
+    EstadoPedido, PredictRequest, Comensal,
 )
 from app.services.ml_client import run_inference
 from app.services.dynamo_client import save_registro, update_feedback_by_key, increment_visitas_cliente
@@ -20,13 +20,13 @@ logger = logging.getLogger("bistrotech.pedido_service")
 
 TABLE_PEDIDOS = os.getenv("DYNAMODB_TABLE_PEDIDOS", "bistrotech-pedidos")
 ENDPOINT_URL  = os.getenv("DYNAMODB_ENDPOINT_URL")
+CLIENTES_POR_MESA = os.getenv("CLIENTES_POR_MESA", "bistrotech-registros") # Mesa que tiene todos los clientes y la mesa que eligieron
 
-
-def _get_table():
+def _get_table(table_name : str = TABLE_PEDIDOS):
     kwargs = {"region_name": os.getenv("AWS_REGION", "us-east-1")}
     if ENDPOINT_URL:
         kwargs["endpoint_url"] = ENDPOINT_URL
-    return boto3.resource("dynamodb", **kwargs).Table(TABLE_PEDIDOS)
+    return boto3.resource("dynamodb", **kwargs).Table(table_name)
 
 
 def _to_response(item: dict) -> PedidoResponse:
@@ -84,11 +84,11 @@ def get_pedido(id_pedido: str) -> Optional[PedidoResponse]:
         return None
 
 
-def list_pedidos(id_mesa: int) -> list[PedidoResponse]:
+def list_pedidos(id_mesa: int) -> list[Comensal]:
     try:
-        resp = _get_table().scan(FilterExpression=Attr("id_mesa").eq(id_mesa))
+        resp = _get_table(CLIENTES_POR_MESA).scan(FilterExpression=Attr("id_mesa").eq(id_mesa))
         items = sorted(resp.get("Items", []), key=lambda i: i["fecha_hora"], reverse=True)
-        return [_to_response(i) for i in items]
+        return [Comensal.model_validate(item) for item in items]
     except (BotoCoreError, ClientError) as exc:
         logger.warning("Error listando pedidos id_mesa=%s: %s", id_mesa, exc)
         return []
